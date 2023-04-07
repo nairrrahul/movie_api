@@ -81,4 +81,4 @@ def list_characters(
       json.sort(key= lambda x: x['title'])
     else:
       json.sort(key= lambda x: x['number_of_lines'])
-    return [j for j in json[offset:] if (j['number_of_lines'] <= limit and name in j['title'])]
+    return [j for j in json[offset:] if (j['number_of_lines'] <= limit and name.upper() in j['name'])]
