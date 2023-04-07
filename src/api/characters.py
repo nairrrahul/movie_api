@@ -26,12 +26,13 @@ def get_character(id: str):
     * `number_of_lines_together`: The number of lines the character has with the
       originally queried character.
     """
-    for character in db.characters:
-        if character["character_id"] == id:
-            print("character found")
 
-    json = None
+    json = None 
 
+    for character in db.get_char_by_id:
+        if str(character["character_id"]) == id:
+            json = character
+    
     if json is None:
         raise HTTPException(status_code=404, detail="movie not found.")
 
@@ -73,5 +74,11 @@ def list_characters(
     number of results to skip before returning results.
     """
 
-    json = None
-    return json
+    json = db.get_chars_list
+    if character_sort_options == character_sort_options.character:
+      json.sort(key= lambda x: x['name'])
+    elif character_sort_options == character_sort_options.movie:
+      json.sort(key= lambda x: x['title'])
+    else:
+      json.sort(key= lambda x: x['number_of_lines'])
+    return [j for j in json[offset:] if (j['number_of_lines'] <= limit and name in j['title'])]
