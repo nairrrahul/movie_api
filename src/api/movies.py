@@ -1,3 +1,4 @@
+import copy
 from fastapi import APIRouter, HTTPException
 from enum import Enum
 from src import database as db
@@ -23,15 +24,35 @@ def get_movie(movie_id: str):
 
     """
 
-    for movie in db.movies:
-        if movie["movie_id"] == id:
-            print("movie found")
-
     json = None
+
+    for movie in db.movies:
+        if movie["movie_id"] == movie_id:
+            json = copy.deepcopy(movie)
 
     if json is None:
         raise HTTPException(status_code=404, detail="movie not found.")
-
+    else:
+        chars_present = []
+        for c_id in db.char_id_to_movie_id:
+            if db.char_id_to_movie_id[c_id] == movie_id:
+                chars_present.append(c_id)
+        cs_list = [
+            {
+                "character_id": int(cid),
+                "character": db.char_id_to_name[cid],
+                "num_lines": db.characters_to_lines[cid]
+            } for cid in chars_present
+        ]
+        cs_list.sort(key=lambda x: x["num_lines"], reverse=True)
+        json['top_characters'] = cs_list[:5]
+        json.pop("year")
+        json.pop("imdb_rating")
+        json.pop("imdb_votes")
+        json.pop("raw_script_url")
+        #get chars from char_id_to_movie_name dict
+        #get char name from char_id_to_name
+        #figure out lines
     return json
 
 

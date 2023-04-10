@@ -30,6 +30,7 @@ def get_character(id: str):
 
     json = None 
 
+    #TODO: empty string to null
     for character in db.characters:
         if character["character_id"] == id:
             json = copy.deepcopy(character)
@@ -89,10 +90,7 @@ def list_characters(
     for char in json:
       char['movie'] = db.char_id_to_movie_name[char['character_id']]
       char.pop('movie_id')
-      c1_convs = db.query_for_chars(db.char_convs_pairs, 0, char['character_id'])
-      c2_convs = db.query_for_chars(db.char_convs_pairs, 1, char['character_id'])
-      total_convs = c1_convs + c2_convs
-      char['number_of_lines'] = sum([t['number_of_lines_together'] for t in total_convs])
+      char['number_of_lines'] = db.characters_to_lines[char['character_id']]
       char['character_id'] = int(char['character_id'])
       char.pop('age')
       char.pop('gender')

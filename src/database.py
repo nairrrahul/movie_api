@@ -34,6 +34,7 @@ char_id_to_name = {char['character_id']: char['name'] for char in characters}
 char_id_to_gender = {char['character_id']: char['gender'] for char in characters}
 movie_id_to_title = {mv['movie_id']: mv['title'] for mv in movies}
 char_id_to_movie_name = {char['character_id']: movie_id_to_title[char['movie_id']] for char in characters}
+char_id_to_movie_id = {char['character_id']: char['movie_id'] for char in characters}
 
 def conv_id_to_lines(lns):
     dct = {}
@@ -90,4 +91,14 @@ def query_for_chars(pairs_list, char_number, char_id):
             } for p in pairs_list if p["c2id"] == char_id
         ]
 
+def lines_per_c_id(lns):
+    dct = {}
+    for line in lns:
+        if line["character_id"] not in dct:
+            dct[line["character_id"]] = 1
+        else:
+            dct[line["character_id"]] += 1
+    return dct
+
 char_convs_pairs = convert_pairs(conversations)
+characters_to_lines = lines_per_c_id(lines)
