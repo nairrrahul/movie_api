@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from enum import Enum
 from src import database as db
+import copy
 
 router = APIRouter()
 
@@ -29,12 +30,22 @@ def get_character(id: str):
 
     json = None 
 
-    for character in db.get_char_by_id:
-        if str(character["character_id"]) == id:
-            json = character
+    for character in db.characters:
+        if character["character_id"] == id:
+            json = copy.deepcopy(character)
     
     if json is None:
         raise HTTPException(status_code=404, detail="movie not found.")
+    else:
+       json['movie'] = db.char_id_to_movie_name[id]
+       json.pop('movie_id')
+       c1_convs = db.query_for_chars(db.char_convs_pairs, 0, id)
+       c2_convs = db.query_for_chars(db.char_convs_pairs, 1, id)
+       c_list = c1_convs + c2_convs
+       c_list.sort(key=lambda x: x["number_of_lines_together"], reverse=True)
+       json['top_conversations'] = c_list
+       json['character_id'] = int(json['character_id'])
+       json.pop('age')
 
     return json
 
@@ -74,11 +85,21 @@ def list_characters(
     number of results to skip before returning results.
     """
 
-    json = db.get_chars_list
-    if character_sort_options == character_sort_options.character:
-      json.sort(key= lambda x: x['name'])
-    elif character_sort_options == character_sort_options.movie:
-      json.sort(key= lambda x: x['title'])
+    json = copy.deepcopy(db.characters)
+    for char in json:
+      char['movie'] = db.char_id_to_movie_name[char['character_id']]
+      char.pop('movie_id')
+      c1_convs = db.query_for_chars(db.char_convs_pairs, 0, char['character_id'])
+      c2_convs = db.query_for_chars(db.char_convs_pairs, 1, char['character_id'])
+      total_convs = c1_convs + c2_convs
+      char['number_of_lines'] = sum([t['number_of_lines_together'] for t in total_convs])
+      char['character_id'] = int(char['character_id'])
+      char.pop('age')
+      char.pop('gender')
+    if sort == character_sort_options.character:
+      json.sort(key=lambda x: x['name'])
+    elif sort ==  character_sort_options.movie:
+      json.sort(key=lambda x: x['movie'])
     else:
-      json.sort(key= lambda x: x['number_of_lines'])
-    return [j for j in json[offset:] if (j['number_of_lines'] <= limit and name.upper() in j['name'])]
+      json.sort(key=lambda x: x['number_of_lines'], reverse=True)
+    return [j for j in json if name.upper() in j["name"]][offset:limit]
