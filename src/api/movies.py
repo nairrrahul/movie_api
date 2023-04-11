@@ -102,7 +102,7 @@ def list_movies(
         movie['imdb_votes'] = int(movie["imdb_votes"])
         movie['movie_id'] = int(movie['movie_id'])
     
-    if sort == movie_sort_options.title:
+    if sort == movie_sort_options.movie_title:
       json.sort(key=lambda x: x['movie_title'])
     elif sort ==  movie_sort_options.year:
       json.sort(key=lambda x: int(x['year']))
