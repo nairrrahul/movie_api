@@ -76,7 +76,7 @@ def query_for_chars(pairs_list, char_number, char_id):
             {
                 "character_id": int(p["c2id"]),
                 "character": p["c2name"],
-                "gender": p["c2gender"],
+                "gender": p["c2gender"] if len(p["c2gender"]) > 0 else None,
                 "number_of_lines_together": int(p["nlines"])
             } for p in pairs_list if p["c1id"] == char_id
         ]
@@ -86,7 +86,7 @@ def query_for_chars(pairs_list, char_number, char_id):
             {
                 "character_id": int(p["c1id"]),
                 "character": p["c1name"],
-                "gender": p["c1gender"],
+                "gender": p["c1gender"] if len(p["c1gender"]) > 0 else None,
                 "number_of_lines_together": int(p["nlines"])
             } for p in pairs_list if p["c2id"] == char_id
         ]
