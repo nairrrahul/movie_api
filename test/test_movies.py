@@ -37,3 +37,15 @@ def test_sort_filter():
 def test_404():
     response = client.get("/movies/1")
     assert response.status_code == 404
+
+#added test
+
+def test_offset_limit():
+    response = client.get("/movies/?name=af&limit=5&offset=1&sort=movie_title")
+    assert response.status_code == 200
+
+    with open(
+        "test/movies/offset_limit.json",
+        encoding="utf-8",
+    ) as f:
+        assert response.json() == json.load(f)

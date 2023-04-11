@@ -1,0 +1,26 @@
+[
+    {
+      "character_id": 1313,
+      "character": "BARRY",
+      "movie": "high fidelity",
+      "number_of_lines": 104
+    },
+    {
+      "character_id": 2511,
+      "character": "BARRY",
+      "movie": "punch-drunk love",
+      "number_of_lines": 355
+    },
+    {
+      "character_id": 6300,
+      "character": "BARRY",
+      "movie": "lock stock and two smoking barrels",
+      "number_of_lines": 19
+    },
+    {
+      "character_id": 6954,
+      "character": "FATHER BARRY",
+      "movie": "on the waterfront",
+      "number_of_lines": 38
+    }
+  ]

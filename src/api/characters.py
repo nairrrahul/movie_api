@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 @router.get("/characters/{id}", tags=["characters"])
-def get_character(id: str):
+def get_character(id: int):
     """
     This endpoint returns a single character by its identifier. For each character
     it returns:
@@ -32,21 +32,25 @@ def get_character(id: str):
 
     #TODO: empty string to null
     for character in db.characters:
-        if character["character_id"] == id:
+        if character["character_id"] == str(id):
             json = copy.deepcopy(character)
     
     if json is None:
         raise HTTPException(status_code=404, detail="movie not found.")
     else:
-       json['movie'] = db.char_id_to_movie_name[id]
+       json['movie'] = db.char_id_to_movie_name[str(id)]
+       if len(json['gender']) == 0:
+          json['gender'] = None
        json.pop('movie_id')
-       c1_convs = db.query_for_chars(db.char_convs_pairs, 0, id)
-       c2_convs = db.query_for_chars(db.char_convs_pairs, 1, id)
+       c1_convs = db.query_for_chars(db.char_convs_pairs, 0, str(id))
+       c2_convs = db.query_for_chars(db.char_convs_pairs, 1, str(id))
        c_list = c1_convs + c2_convs
        c_list.sort(key=lambda x: x["number_of_lines_together"], reverse=True)
        json['top_conversations'] = c_list
        json['character_id'] = int(json['character_id'])
+       json['character'] = json['name']
        json.pop('age')
+       json.pop('name')
 
     return json
 
@@ -92,12 +96,14 @@ def list_characters(
       char.pop('movie_id')
       char['number_of_lines'] = db.characters_to_lines[char['character_id']]
       char['character_id'] = int(char['character_id'])
+      char['character'] = char['name']
+      char.pop('name')
       char.pop('age')
       char.pop('gender')
     if sort == character_sort_options.character:
-      json.sort(key=lambda x: x['name'])
+      json.sort(key=lambda x: x['character'])
     elif sort ==  character_sort_options.movie:
       json.sort(key=lambda x: x['movie'])
     else:
       json.sort(key=lambda x: x['number_of_lines'], reverse=True)
-    return [j for j in json if name.upper() in j["name"]][offset:limit]
+    return [j for j in json if name.upper() in j["character"]][offset:limit]

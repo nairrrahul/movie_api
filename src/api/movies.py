@@ -8,7 +8,7 @@ router = APIRouter()
 
 # include top 3 actors by number of lines
 @router.get("/movies/{movie_id}", tags=["movies"])
-def get_movie(movie_id: str):
+def get_movie(movie_id: int):
     """
     This endpoint returns a single movie by its identifier. For each movie it returns:
     * `movie_id`: the internal id of the movie.
@@ -27,7 +27,7 @@ def get_movie(movie_id: str):
     json = None
 
     for movie in db.movies:
-        if movie["movie_id"] == movie_id:
+        if movie["movie_id"] == str(movie_id):
             json = copy.deepcopy(movie)
 
     if json is None:
@@ -35,7 +35,7 @@ def get_movie(movie_id: str):
     else:
         chars_present = []
         for c_id in db.char_id_to_movie_id:
-            if db.char_id_to_movie_id[c_id] == movie_id:
+            if db.char_id_to_movie_id[c_id] == str(movie_id):
                 chars_present.append(c_id)
         cs_list = [
             {
@@ -45,6 +45,7 @@ def get_movie(movie_id: str):
             } for cid in chars_present
         ]
         cs_list.sort(key=lambda x: x["num_lines"], reverse=True)
+        json['movie_id'] = int(json['movie_id'])
         json['top_characters'] = cs_list[:5]
         json.pop("year")
         json.pop("imdb_rating")
