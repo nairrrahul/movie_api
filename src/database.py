@@ -102,3 +102,4 @@ def lines_per_c_id(lns):
 
 char_convs_pairs = convert_pairs(conversations)
 characters_to_lines = lines_per_c_id(lines)
+conv_id_lines = conv_id_to_lines(lines)
