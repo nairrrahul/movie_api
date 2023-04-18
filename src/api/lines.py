@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.params import Query
 from enum import Enum
 from src import database as db
 import copy
@@ -88,8 +89,8 @@ class lines_sort_options(str, Enum):
 @router.get("/lines/", tags=["lines"])
 def list_lines(
     text: str = "",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=250),
+    offset: int = Query(0, ge=0),
     sort: lines_sort_options = lines_sort_options.movie_title
 ):
     """

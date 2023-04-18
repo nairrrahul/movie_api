@@ -1,0 +1,24 @@
+{
+    "conversation_id": 25,
+    "movie": "10 things i hate about you",
+    "lines": [
+      {
+        "character": "BIANCA",
+        "character_id": 0,
+        "gender": "F",
+        "line_text": "Did you change your hair?"
+      },
+      {
+        "character": "CHASTITY",
+        "character_id": 3,
+        "gender": null,
+        "line_text": "No."
+      },
+      {
+        "character": "BIANCA",
+        "character_id": 0,
+        "gender": "F",
+        "line_text": "You might wanna think about it"
+      }
+    ]
+  }
