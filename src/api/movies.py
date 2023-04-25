@@ -2,11 +2,11 @@ import copy
 from fastapi import APIRouter, HTTPException
 from enum import Enum
 from src import database as db
+from fastapi.params import Query
 
 router = APIRouter()
 
 
-# include top 3 actors by number of lines
 @router.get("/movies/{movie_id}", tags=["movies"])
 def get_movie(movie_id: int):
     """
@@ -24,37 +24,23 @@ def get_movie(movie_id: int):
 
     """
 
-    json = None
-
-    for movie in db.movies:
-        if movie["movie_id"] == str(movie_id):
-            json = copy.deepcopy(movie)
-
-    if json is None:
-        raise HTTPException(status_code=404, detail="movie not found.")
-    else:
-        chars_present = []
-        for c_id in db.char_id_to_movie_id:
-            if db.char_id_to_movie_id[c_id] == str(movie_id):
-                chars_present.append(c_id)
-        cs_list = [
-            {
-                "character_id": int(cid),
-                "character": db.char_id_to_name[cid],
-                "num_lines": db.characters_to_lines[cid]
-            } for cid in chars_present
+    movie = db.movies.get(movie_id)
+    if movie:
+        top_chars = [
+            {"character_id": c.id, "character": c.name, "num_lines": c.num_lines}
+            for c in db.characters.values()
+            if c.movie_id == movie_id
         ]
-        cs_list.sort(key=lambda x: x["num_lines"], reverse=True)
-        json['movie_id'] = int(json['movie_id'])
-        json['top_characters'] = cs_list[:5]
-        json.pop("year")
-        json.pop("imdb_rating")
-        json.pop("imdb_votes")
-        json.pop("raw_script_url")
-        #get chars from char_id_to_movie_name dict
-        #get char name from char_id_to_name
-        #figure out lines
-    return json
+        top_chars.sort(key=lambda c: c["num_lines"], reverse=True)
+
+        result = {
+            "movie_id": movie_id,
+            "title": movie.title,
+            "top_characters": top_chars[0:5],
+        }
+        return result
+
+    raise HTTPException(status_code=404, detail="movie not found.")
 
 
 class movie_sort_options(str, Enum):
@@ -67,8 +53,8 @@ class movie_sort_options(str, Enum):
 @router.get("/movies/", tags=["movies"])
 def list_movies(
     name: str = "",
-    limit: int = 50,
-    offset: int = 0,
+    limit: int = Query(50, ge=1, le=250),
+    offset: int = Query(0, ge=0),
     sort: movie_sort_options = movie_sort_options.movie_title,
 ):
     """
@@ -93,19 +79,33 @@ def list_movies(
     maximum number of results to return. The `offset` query parameter specifies the
     number of results to skip before returning results.
     """
-    json = copy.deepcopy(db.movies)
-    for movie in json:
-        movie.pop("raw_script_url")
-        movie['movie_title'] = movie['title']
-        movie.pop('title')
-        movie['imdb_rating'] = float(movie['imdb_rating'])
-        movie['imdb_votes'] = int(movie["imdb_votes"])
-        movie['movie_id'] = int(movie['movie_id'])
-    
-    if sort == movie_sort_options.movie_title:
-      json.sort(key=lambda x: x['movie_title'])
-    elif sort ==  movie_sort_options.year:
-      json.sort(key=lambda x: int(x['year']))
+    if name:
+
+        def filter_fn(m):
+            return m.title and name.lower() in m.title
+
     else:
-      json.sort(key=lambda x: x['imdb_rating'], reverse=True)
-    return [j for j in json if name in j["movie_title"]][offset:limit]
+
+        def filter_fn(_):
+            return True
+
+    items = list(filter(filter_fn, db.movies.values()))
+    if sort == movie_sort_options.movie_title:
+        items.sort(key=lambda m: m.title)
+    elif sort == movie_sort_options.year:
+        items.sort(key=lambda m: m.year)
+    elif sort == movie_sort_options.rating:
+        items.sort(key=lambda m: m.imdb_rating, reverse=True)
+
+    json = (
+        {
+            "movie_id": m.id,
+            "movie_title": m.title,
+            "year": m.year,
+            "imdb_rating": m.imdb_rating,
+            "imdb_votes": m.imdb_votes,
+        }
+        for m in items[offset : offset + limit]
+    )
+
+    return json

@@ -1,105 +1,149 @@
 import csv
+from src.datatypes import Character, Movie, Conversation, Line
+import os
+import io
+from supabase import Client, create_client
+import dotenv
 
-# TODO: You will want to replace all of the code below. It is just to show you
-# an example of reading the CSV files where you will get the data to complete
-# the assignment.
+# DO NOT CHANGE THIS TO BE HARDCODED. ONLY PULL FROM ENVIRONMENT VARIABLES.
+dotenv.load_dotenv()
+supabase_api_key = os.environ.get("SUPABASE_API_KEY")
+supabase_url = os.environ.get("SUPABASE_URL")
 
-print("reading movies")
+if supabase_api_key is None or supabase_url is None:
+    raise Exception(
+        "You must set the SUPABASE_API_KEY and SUPABASE_URL environment variables."
+    )
+
+supabase: Client = create_client(supabase_url, supabase_api_key)
+
+sess = supabase.auth.get_session()
+
+lines_csv = (
+    supabase.storage.from_("movie-api")
+    .download("lines.csv")
+    .decode("utf-8")
+)
+
+convs_csv = (
+    supabase.storage.from_("movie-api")
+    .download("conversations.csv")
+    .decode("utf-8")
+)
+
+def update_lines():
+    global lines_csv
+    lines_csv = (
+        supabase.storage.from_("movie-api")
+        .download("lines.csv")
+        .decode("utf-8")
+    )
+
+def update_convs():
+    #not sure this is best practice...
+    global convs_csv
+    convs_csv = (
+        supabase.storage.from_("movie-api")
+        .download("conversations.csv")
+        .decode("utf-8")
+    )
+
+lines_log = []
+convs_log = []
+
+for line_row in csv.DictReader(io.StringIO(lines_csv), skipinitialspace=True):
+    lines_log.append(line_row)
+
+for conv_row in csv.DictReader(io.StringIO(convs_csv), skipinitialspace=True):
+    convs_log.append(conv_row)
+
+def upload_new_line():
+    output = io.StringIO()
+    csv_writer = csv.DictWriter(
+        output, fieldnames=["line_id","character_id","movie_id","conversation_id","line_sort","line_text"]
+    )
+    csv_writer.writeheader()
+    csv_writer.writerows(lines_log)
+    supabase.storage.from_("movie-api").upload(
+        "lines.csv",
+        bytes(output.getvalue(), "utf-8"),
+        {"x-upsert" : "true"}
+    )
+
+def upload_new_conv():
+    output = io.StringIO()
+    csv_writer = csv.DictWriter(
+        output, fieldnames=["conversation_id","character1_id","character2_id","movie_id"]
+    )
+    csv_writer.writeheader()
+    csv_writer.writerows(convs_log)
+    supabase.storage.from_("movie-api").upload(
+        "conversations.csv",
+        bytes(output.getvalue(), "utf-8"),
+        {"x-upsert" : "true"}
+    )
+
+
+def try_parse(type, val):
+    try:
+        return type(val)
+    except ValueError:
+        return None
+
 
 with open("movies.csv", mode="r", encoding="utf8") as csv_file:
-    movies = [
-        {k: v for k, v in row.items()}
+    movies = {
+        try_parse(int, row["movie_id"]): Movie(
+            try_parse(int, row["movie_id"]),
+            row["title"] or None,
+            row["year"] or None,
+            try_parse(float, row["imdb_rating"]),
+            try_parse(int, row["imdb_votes"]),
+            row["raw_script_url"] or None,
+        )
         for row in csv.DictReader(csv_file, skipinitialspace=True)
-    ]
+    }
 
 with open("characters.csv", mode="r", encoding="utf8") as csv_file:
-    characters = [
-        {k: v for k, v in row.items()}
-        for row in csv.DictReader(csv_file, skipinitialspace=True)
-    ]
+    characters = {}
+    for row in csv.DictReader(csv_file, skipinitialspace=True):
+        char = Character(
+            try_parse(int, row["character_id"]),
+            row["name"] or None,
+            try_parse(int, row["movie_id"]),
+            row["gender"] or None,
+            try_parse(int, row["age"]),
+            0,
+        )
+        characters[char.id] = char
 
-with open("conversations.csv", mode="r", encoding="utf8") as csv_file:
-    conversations = [
-        {k: v for k, v in row.items()}
-        for row in csv.DictReader(csv_file, skipinitialspace=True)
-    ]
+conversations = {}
+for row in csv.DictReader(io.StringIO(convs_csv), skipinitialspace=True):
+    conv = Conversation(
+        try_parse(int, row["conversation_id"]),
+        try_parse(int, row["character1_id"]),
+        try_parse(int, row["character2_id"]),
+        try_parse(int, row["movie_id"]),
+        0,
+    )
+    conversations[conv.id] = conv
 
-with open("lines.csv", mode="r", encoding="utf8") as csv_file:
-    lines = [
-        {k: v for k, v in row.items()}
-        for row in csv.DictReader(csv_file, skipinitialspace=True)
-    ]
 
-char_id_to_name = {char['character_id']: char['name'] for char in characters}
-char_id_to_gender = {char['character_id']: char['gender'] for char in characters}
-movie_id_to_title = {mv['movie_id']: mv['title'] for mv in movies}
-char_id_to_movie_name = {char['character_id']: movie_id_to_title[char['movie_id']] for char in characters}
-char_id_to_movie_id = {char['character_id']: char['movie_id'] for char in characters}
+lines = {}
+for row in csv.DictReader(io.StringIO(lines_csv), skipinitialspace=True):
+    line = Line(
+        try_parse(int, row["line_id"]),
+        try_parse(int, row["character_id"]),
+        try_parse(int, row["movie_id"]),
+        try_parse(int, row["conversation_id"]),
+        try_parse(int, row["line_sort"]),
+        row["line_text"],
+    )
+    lines[line.id] = line
+    c = characters.get(line.c_id)
+    if c:
+        c.num_lines += 1
 
-def conv_id_to_lines(lns):
-    dct = {}
-    for line in lns:
-        if line["conversation_id"] not in dct:
-            dct[line["conversation_id"]] = 1
-        else:
-            dct[line["conversation_id"]] += 1
-    return dct
-
-def convert_pairs(convs_list):
-    p_dict = {}
-    lns_dct = conv_id_to_lines(lines)
-    pairs = []
-    for conv in convs_list:
-        key = str(conv['character1_id'])+"-"+str(conv['character2_id'])
-        if key not in p_dict:
-            p_dict[key] = lns_dct[conv["conversation_id"]]
-        else:
-            p_dict[key] += lns_dct[conv["conversation_id"]]
-    for k in p_dict:
-        c1id = k.split("-")[0]
-        c2id = k.split("-")[1]
-        pairs.append({
-            "c1id": c1id,
-            "c1name": char_id_to_name[c1id],
-            "c2id": c2id,
-            "c2name": char_id_to_name[c2id],
-            "c2gender": char_id_to_gender[c2id],
-            "c1gender": char_id_to_gender[c1id],
-            "nlines": p_dict[k]
-        })
-    return pairs
-
-def query_for_chars(pairs_list, char_number, char_id):
-    if char_number == 0:
-        #id is for 1st character
-        return [
-            {
-                "character_id": int(p["c2id"]),
-                "character": p["c2name"],
-                "gender": p["c2gender"] if len(p["c2gender"]) > 0 else None,
-                "number_of_lines_together": int(p["nlines"])
-            } for p in pairs_list if p["c1id"] == char_id
-        ]
-    else:
-        #id is for 2nd character
-        return [
-            {
-                "character_id": int(p["c1id"]),
-                "character": p["c1name"],
-                "gender": p["c1gender"] if len(p["c1gender"]) > 0 else None,
-                "number_of_lines_together": int(p["nlines"])
-            } for p in pairs_list if p["c2id"] == char_id
-        ]
-
-def lines_per_c_id(lns):
-    dct = {}
-    for line in lns:
-        if line["character_id"] not in dct:
-            dct[line["character_id"]] = 1
-        else:
-            dct[line["character_id"]] += 1
-    return dct
-
-char_convs_pairs = convert_pairs(conversations)
-characters_to_lines = lines_per_c_id(lines)
-conv_id_lines = conv_id_to_lines(lines)
+    conv = conversations.get(line.conv_id)
+    if conv:
+        conv.num_lines += 1
