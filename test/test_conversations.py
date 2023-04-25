@@ -26,5 +26,7 @@ def test_posted_one_line():
                                         "line_text": "testing testing"
                                     }
                                    ]})
+    response2 = client.get("/characters/?name=BIANCA&limit=50&offset=0&sort=character")
+    assert response2.json()[0]["number_of_lines"] >= 98
     assert response.status_code == 200
 

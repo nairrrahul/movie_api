@@ -83,6 +83,27 @@ def upload_new_conv():
         {"x-upsert" : "true"}
     )
 
+#template, non-functional
+def clean_lines_db():
+    output = io.StringIO()
+    clean_lines = supabase.storage.from_("movie-api").download("dunmmy_lines.csv").decode("utf-8")
+    supabase.storage.from_("movie-api").upload(
+        clean_lines,
+        bytes(output.getvalue(), "utf-8"),
+        {"x-upsert" : "true"}
+    )
+
+#template, non-functional
+def clean_lines_db():
+    output = io.StringIO()
+    clean_convs = supabase.storage.from_("movie-api").download("dummy_conversations.csv").decode("utf-8")
+    #fix up this portion
+    supabase.storage.from_("movie-api").upload(
+        clean_convs,
+        bytes(output.getvalue(), "utf-8"),
+        {"x-upsert" : "true"}
+    )
+
 
 def try_parse(type, val):
     try:
