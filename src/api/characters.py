@@ -1,29 +1,26 @@
 from fastapi import APIRouter, HTTPException
-from enum import Enum
-from collections import Counter
-
 from fastapi.params import Query
-from src import database as db
-import copy
+import os
+import dotenv
+import sqlalchemy
+import dotenv
+from enum import Enum
 
 router = APIRouter()
 
+def database_connection_url():
+    dotenv.load_dotenv()
+    DB_USER: str = os.environ.get("POSTGRES_USER")
+    DB_PASSWD = os.environ.get("POSTGRES_PASSWORD")
+    DB_SERVER: str = os.environ.get("POSTGRES_SERVER")
+    DB_PORT: str = os.environ.get("POSTGRES_PORT")
+    DB_NAME: str = os.environ.get("POSTGRES_DB")
+    return f"postgresql://{DB_USER}:{DB_PASSWD}@{DB_SERVER}:{DB_PORT}/{DB_NAME}"
 
-def get_top_conv_characters(character):
-    c_id = character.id
-    movie_id = character.movie_id
-    all_convs = filter(
-        lambda conv: conv.movie_id == movie_id
-        and (conv.c1_id == c_id or conv.c2_id == c_id),
-        db.conversations.values(),
-    )
-    line_counts = Counter()
+# Create a new DB engine based on our connection string
+engine = sqlalchemy.create_engine(database_connection_url())
 
-    for conv in all_convs:
-        other_id = conv.c2_id if conv.c1_id == c_id else conv.c1_id
-        line_counts[other_id] += conv.num_lines
 
-    return line_counts.most_common()
 
 
 @router.get("/characters/{id}", tags=["characters"])
@@ -47,29 +44,53 @@ def get_character(id: int):
     * `number_of_lines_together`: The number of lines the character has with the
       originally queried character.
     """
+    json = {}
 
-    character = db.characters.get(id)
-
-    if character:
-        movie = db.movies.get(character.movie_id)
-        result = {
-            "character_id": character.id,
-            "character": character.name,
-            "movie": movie and movie.title,
-            "gender": character.gender,
-            "top_conversations": (
+    with engine.begin() as conn:
+        lines_a = conn.execute(
+            sqlalchemy.text(
+            f'''
+            SELECT ch.character_id, ch.name, ch.gender, m.title FROM characters as ch
+            JOIN movies as m on m.movie_id = ch.movie_id
+            WHERE ch.character_id = {id}
+            '''
+            )
+        )
+        for line_t in lines_a:
+            json = {
+                "character_id": line_t.character_id,
+                "character": line_t.name,
+                "movie": line_t.title,
+                "gender": line_t.gender
+            }
+        lines_list = conn.execute(
+            sqlalchemy.text(
+            f'''
+            WITH char_line_table as 
+                (SELECT c.character1_id, c.character2_id, count(l.conversation_id) num_lines_with from lines as l
+                 JOIN conversations as c on c.conversation_id = l.conversation_id
+                 WHERE c.character1_id = {id} OR c.character2_id = {id}
+                 GROUP BY l.conversation_id, c.conversation_id)
+            SELECT ch.character_id, ch.name, ch.gender, sum(cl.num_lines_with) total_lines from char_line_table as cl
+            JOIN characters as ch on (cl.character1_id = ch.character_id AND cl.character2_id = {id})
+                                  or (cl.character2_id = ch.character_id AND cl.character1_id = {id})
+            GROUP BY ch.character_id
+            ORDER BY total_lines DESC
+            '''
+            )
+        )
+        temp = []
+        for line in lines_list:
+            temp.append(
                 {
-                    "character_id": other_id,
-                    "character": db.characters[other_id].name,
-                    "gender": db.characters[other_id].gender,
-                    "number_of_lines_together": lines,
+                "character_id": line.character_id,
+                "character": line.name,
+                "gender": line.gender,
+                "number_of_lines_together": int(line.total_lines)
                 }
-                for other_id, lines in get_top_conv_characters(character)
-            ),
-        }
-        return result
-
-    raise HTTPException(status_code=404, detail="character not found.")
+            )
+        json["top_conversations"] = temp
+    return json
 
 
 class character_sort_options(str, Enum):
@@ -106,36 +127,40 @@ def list_characters(
     maximum number of results to return. The `offset` query parameter specifies the
     number of results to skip before returning results.
     """
-
-    if name:
-
-        def filter_fn(c):
-            return c.name and name.upper() in c.name
-
+    sort_text = ""
+    if sort is character_sort_options.character:
+        sort_text = "name ASC"
+    elif sort is character_sort_options.movie:
+        sort_text = "title ASC"
+    elif sort is character_sort_options.number_of_lines:
+        sort_text = "num_lines DESC"
     else:
+        assert False
 
-        def filter_fn(_):
-            return True
+    json = []
 
-    items = list(filter(filter_fn, db.characters.values()))
+    if "drop" in name.lower():
+        assert False
 
-    def none_last(x, reverse=False):
-        return (x is None) ^ reverse, x
-
-    if sort == character_sort_options.character:
-        items.sort(key=lambda c: none_last(c.name))
-    elif sort == character_sort_options.movie:
-        items.sort(key=lambda c: none_last(db.movies[c.movie_id].title))
-    elif sort == character_sort_options.number_of_lines:
-        items.sort(key=lambda c: none_last(c.num_lines, True), reverse=True)
-
-    json = (
-        {
-            "character_id": c.id,
-            "character": c.name,
-            "movie": db.movies[c.movie_id].title,
-            "number_of_lines": c.num_lines,
-        }
-        for c in items[offset : offset + limit]
-    )
-    return json
+    with engine.begin() as conn:
+        lines = conn.execute(
+            sqlalchemy.text(
+            f'''
+            WITH char_list as
+                (SELECT c.character_id, c.name, m.title, l.character_id, count(*) num_lines 
+                 FROM characters as c 
+                 JOIN movies as m ON m.movie_id = c.movie_id 
+                 JOIN lines as l on l.character_id = c.character_id 
+                 GROUP BY c.character_id, m.title, l.character_id) 
+            SELECT * from char_list 
+            WHERE name like '%{name.upper()}%' 
+            ORDER BY {sort_text}
+            '''))
+        for line in lines:
+            json.append({
+                "character_id": line.character_id,
+                "character": line.name,
+                "movie": line.title,
+                "number_of_lines": line.num_lines
+            })
+    return json[offset:limit+offset]
