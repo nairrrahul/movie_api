@@ -5,7 +5,6 @@ import dotenv
 import sqlalchemy
 import dotenv
 from enum import Enum
-import database as db
 
 router = APIRouter()
 
